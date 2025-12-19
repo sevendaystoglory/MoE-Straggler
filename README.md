@@ -5,20 +5,11 @@ Cited by 1510
 ### 1. Introduction - What is the Flaw?
 The Mixture of Experts (MoE) architecture was popularized by Mixtral of Experts to the generic public. Mistral AI (the company
 which developed it) open-sourced the model, and it performed on par with the then-opensource demon Llama-2-70b.
-The core idea behind MoE is to leverage a large number of experts - each handling a subset of the input - to achieve
-conditional computation. This allows the overall model capacity to scale without a linear increase in computation cost per
-token. Hence, some of the biggest deep neural nets with 1T+ parameters have been MoE. However, this strength also
-introduces a critical challenge:
-Load Imbalance: Some experts may be overloaded (or underutilized), creating bottlenecks during parallel execution. This
-causes latency in inference since some experts in the FFN finish their forward pass early while others hold up the process.
-I'll explain this with an example: suppose we have 100 tokens (more precisely, their latent representations) freshly enriched
-from the self-attention layer. They are then passed through the FFN layer, where a gating function distributes these 100 tokens
-across experts. This distribution is non-uniform, and the next step (the add and layernorm) will only execute when every token
-has passed through its assigned expert. Hence, load imbalance across experts can cause the most loaded expert to delay the
-entire operation. What if we could achieve a more even distribution?
-In this technical report, I explore the underlying bottlenecks of MoE, review the evolution of expert routing -from the original
-MoE papers to recent advances like Mixtral and Deepseek V3- and describe my approach for mitigating these imbalances
-during inference.
+The core idea behind MoE is to leverage a large number of experts - each handling a subset of the input - to achieve conditional computation. This allows the overall model capacity to scale without a linear increase in computation cost per token. Hence, some of the biggest deep neural nets with 1T+ parameters have been MoE. However, this strength also introduces a critical challenge:
+
+**Load Imbalance:** Some experts may be overloaded (or underutilized), creating bottlenecks during parallel execution. This causes latency in inference since some experts in the FFN finish their forward pass early while others hold up the process. **I'll explain this with an example:** suppose we have 100 tokens (more precisely, their latent representations) freshly enriched from the self-attention layer. They are then passed through the FFN layer, where a gating function distributes these 100 tokens across experts. This distribution is non-uniform, and the next step (the add and layernorm) will only execute when every token has passed through its assigned expert. Hence, load imbalance across experts can cause the most loaded expert to delay the entire operation. Now, each expert is basically a FFN layer and all token matmuls are independent, however, we see this effect when experts are hosted on separate GPUs and the distribution is especially skewed. What if we could achieve a more even distribution?
+
+In this technical report, I explore the underlying bottlenecks of MoE, review the evolution of expert routing -from the original MoE papers to recent advances like Mixtral and Deepseek V3- and describe my approach for mitigating these imbalances during inference.
 
 ### 1.1 Expert Parallelism in Mixtral of Experts
 Mixtral of Experts utilizes Expert Parallelism to compute latent representations in the FFN layers. This operation is highly
